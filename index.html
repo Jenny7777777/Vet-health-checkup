@@ -240,6 +240,9 @@ footer{border-top:1px solid var(--line);margin-top:36px;padding:16px 0 0;font-si
   nav button{padding:10px 10px;font-size:13px}
 }
 .compact .opt1,.compact .opt2{display:none}
+.ro .jb,.ro .dfix,.ro .scchk,.ro .ifixchk,.ro #jBatch,.ro .dbtns,.ro .ifix label,.ro #showFixed{display:none!important}
+.ro .jnote{background:var(--line-soft);cursor:default}
+.ro .tag{border-color:var(--gold);color:var(--gold)}
 @media print{nav,.drawer,.scrim,.quick,.tools-btn{display:none!important}body{background:#fff}}
 </style>
 </head>
@@ -500,7 +503,7 @@ footer{border-top:1px solid var(--line);margin-top:36px;padding:16px 0 0;font-si
 </section>
 
 <section id="t-judge" hidden="">
-  <h2 style="margin:0 0 6px;font-size:18px">人工判定</h2>
+  <h2 style="margin:0 0 6px;font-size:18px">人工判定<span class="sub" id="judge-ro"></span></h2>
   <p class="lede">點任一列展開該件的收費明細；點病患 ID 可直接複製，貼到病歷系統對照。</p>
   <div id="judge-band" style="margin-bottom:14px"></div>
   <div class="ctl">
@@ -1437,9 +1440,10 @@ renderOverview();refreshCompare();renderBranch();renderZone();renderDoctorPage()
 
 /* ================= 匯入 / 判定 / 合規 / 字典 引擎 ================= */
 const LD=JSON.parse(document.getElementById('LABDICT').textContent);
-const LS={get:(k,d)=>{try{const v=localStorage.getItem('lkq4.'+k);return v?JSON.parse(v):d}catch(e){return d}},
-  set:(k,v)=>{try{localStorage.setItem('lkq4.'+k,JSON.stringify(v))}catch(e){toast('本機儲存空間不足，資料未保存')}},
-  del:k=>{try{localStorage.removeItem('lkq4.'+k)}catch(e){}}};
+const RO=(location.protocol==='http:'||location.protocol==='https:')&&!/(^|[#&])edit\b/.test(location.hash);
+const LS={get:(k,d)=>{if(RO)return d;try{const v=localStorage.getItem('lkq4.'+k);return v?JSON.parse(v):d}catch(e){return d}},
+  set:(k,v)=>{if(RO)return;try{localStorage.setItem('lkq4.'+k,JSON.stringify(v))}catch(e){toast('本機儲存空間不足，資料未保存')}},
+  del:k=>{if(RO)return;try{localStorage.removeItem('lkq4.'+k)}catch(e){}}};
 const ST={scene:LS.get('scene',{}),disc:LS.get('disc',{}),cases:LS.get('cases',null),visits:LS.get('visits',null),verdict:LS.get('verdict',{}),
   dict:LS.get('dict',{}),batches:LS.get('batches',[]),prev:LS.get('prev',null)};
 function toast(m){const e=document.getElementById('toolMsg');if(e)e.innerHTML='<b>'+m+'</b>';}
@@ -1598,6 +1602,7 @@ function dupItems(c){const m={};c.it.forEach(i=>{const k=i[0]+'|'+i[1];m[k]=(m[k
 
 /* ---------- import handlers ---------- */
 function importCases(rows,fname){
+  if(RO)return toast('檢視模式：不開放匯入');
   if(!rows.length||!('病歷號' in rows[0])){toast('這份檔案看起來不是健檢明細（缺少病歷號欄位）');return;}
   const prev=ST.cases?ST.cases.map(c=>({k:c.k,tot:c.tot,n:c.it.length})):null;
   const cases=buildCases(rows);
@@ -1611,6 +1616,7 @@ function importCases(rows,fname){
     +'。資料只存在這台瀏覽器，建議立即「匯出完整留存 xlsx」備份一份。');
 }
 function importVisits(rows,fname){
+  if(RO)return toast('檢視模式：不開放匯入');
   if(!rows.length||!('總病歷數' in rows[0])){toast('這份檔案看起來不是醫療統計（缺少總病歷數欄位）');return;}
   const v={},vac={};
   rows.forEach(r=>{const b=normB(r['門市']);if(!b)return;
@@ -1817,6 +1823,7 @@ function renderJudge(){
     const k=tr.dataset.k; JOPEN.has(k)?JOPEN.delete(k):JOPEN.add(k); renderJudge();});
   document.querySelectorAll('.mrcopy').forEach(b=>b.onclick=e=>{e.stopPropagation();copyText(b.dataset.mr);});
   document.querySelectorAll('.jb').forEach(b=>b.onclick=e=>{e.stopPropagation();setVerdict(b.dataset.k,b.dataset.v);});
+  if(RO){document.querySelectorAll('.jnote').forEach(t=>{t.readOnly=true;t.placeholder='檢視模式：備註由管理端維護';});}
   document.querySelectorAll('.scchk').forEach(ch=>{ch.onclick=e=>e.stopPropagation();
     ch.onchange=()=>{const k=ch.dataset.k;
       const box=[...document.querySelectorAll('.scchk[data-k="'+k+'"]')].filter(x=>x.checked).map(x=>x.value);
@@ -1892,6 +1899,7 @@ function judgeCsv(){
   toast('已匯出 '+rows.length+' 件篩選結果');
 }
 function setVerdict(k,v){
+  if(RO)return toast('檢視模式：此版本僅供查看，判定請由管理端操作');
   const prev=ST.verdict[k]||{};
   const live=document.querySelector('.jnote[data-k="'+k+'"]');
   const note=live?live.value:(prev.note||'');
@@ -2056,7 +2064,7 @@ document.getElementById('dExport').onclick=()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(ST.dict,null,1)],{type:'application/json'}));
   a.download='品項分類字典_Q4.json';a.click();};
 const TOOLPAGES=['t-import','t-judge','t-comply','t-dict','t-def'];
-function goTool(id){TOOLPAGES.forEach(p=>document.getElementById(p).hidden=p!==id);
+function goTool(id){TOOLPAGES.forEach(p=>{const e=document.getElementById(p);if(e)e.hidden=p!==id;});
   ['overview','compare','branch','zone','doctor'].forEach(p=>document.getElementById(p).hidden=true);
   document.querySelectorAll('nav button[data-page]').forEach(x=>x.setAttribute('aria-selected','false'));
   dw.dataset.open=false;sc.dataset.open=false;window.scrollTo(0,0);}
@@ -2069,7 +2077,7 @@ document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{
   else if(a==='reset'){if(confirm('確定清除本機的匯入資料與人工判定？此動作無法復原。')){
     ['cases','visits','verdict','dict','disc','scene','batches','prev'].forEach(LS.del);location.reload();}}});
 document.querySelectorAll('nav button[data-page]').forEach(b=>b.addEventListener('click',()=>{
-  TOOLPAGES.forEach(p=>document.getElementById(p).hidden=true);}));
+  TOOLPAGES.forEach(p=>{const e=document.getElementById(p);if(e)e.hidden=true;});}));
 document.addEventListener('keydown',e=>{
   if(document.getElementById('t-judge').hidden)return;
   if(/input|select|textarea/i.test(e.target.tagName))return;
@@ -2090,6 +2098,21 @@ else{document.getElementById('tag').textContent='資料截止 '+D.q4.cases.map(c
   renderJudge();renderComply();renderDict();}
 renderImport();
 
+
+(function(){ if(RO)return;
+  let okStore=false;
+  try{localStorage.setItem('lkq4.__t','1');localStorage.removeItem('lkq4.__t');okStore=true;}catch(e){}
+  if(!okStore){const bar=document.createElement('div');
+    bar.style.cssText='background:#A33A2E;color:#fff;padding:8px 14px;font-size:13px;text-align:center';
+    bar.textContent='這個瀏覽器不允許本機儲存，判定與備註不會自動保存。請在關閉前用「工具 → 匯出目前進度的儀表板」存檔。';
+    document.body.insertBefore(bar,document.body.firstChild);}
+})();
+if(RO){document.body.classList.add('ro');
+  const jr=document.getElementById('judge-ro');if(jr)jr.textContent='　檢視模式：可查看判定結果與明細，不可修改';
+  const tg2=document.getElementById('tag');if(tg2)tg2.textContent=(tg2.textContent||'')+'　檢視模式（唯讀）';
+  document.querySelectorAll('.tool[data-go="t-import"],.tool[data-act="reset"]').forEach(b=>b.remove());
+  const ip=document.getElementById('t-import');
+  if(ip)ip.innerHTML='<h2 style="margin:0 0 6px;font-size:18px">匯入資料</h2><p class="lede">檢視模式不開放匯入；本頁資料由管理端更新後重新發佈。</p>';}
 </script>
 
 </body></html>
